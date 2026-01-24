@@ -2,11 +2,13 @@ TARGET = kernel.bin
 ISO = myos.iso
 
 CC = gcc
-AS = gcc
+AS = nasm
 LD = ld
 
 CFLAGS = -m32 -ffreestanding -O2 -Wall -Wextra \
          -fno-exceptions -fno-stack-protector -fno-pic -fno-builtin
+
+ASFLAGS = -f elf32
 LDFLAGS = -m elf_i386 -T linker.ld -nostdlib
 
 OBJ = boot.o kernel.o
@@ -17,7 +19,7 @@ all: $(ISO)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 %.o: %.s
-	$(AS) -m32 -c $< -o $@
+	$(AS) $(ASFLAGS) $< -o $@
 
 $(TARGET): $(OBJ) linker.ld
 	$(LD) $(LDFLAGS) -o $@ $(OBJ)
@@ -35,4 +37,3 @@ run: $(ISO)
 clean:
 	rm -f $(OBJ) $(TARGET) $(ISO)
 	rm -rf isodir
-
