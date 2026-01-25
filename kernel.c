@@ -197,7 +197,7 @@ void main_menu(void) {
     kprint_at("+-----------------+", 5, 2, color);
     kprint_at("|     Notepad     |", 6, 2, color);
     kprint_at("+-----------------+", 7, 2, color);
-    kprint_at("Press 'n' to open Notepad, 'q' to quit.", 9, 2, color);
+    kprint_at("Press 'n' to open Notepad", 9, 2, color);
 
     char c = get_keyboard_char();
     for (;;) {
