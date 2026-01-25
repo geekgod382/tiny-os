@@ -1,5 +1,11 @@
 #include <stdint.h>
 
+static inline uint8_t inb(uint16_t port){
+    uint8_t value;
+    __asm__ __volatile__ ("inb %1, %0" : "=a"(value) : "Nd"(port));
+    return value;
+}
+
 // VGA text mode output
 static volatile uint16_t* const VGA_BUFFER = (uint16_t*)0xB8000;
 static const int VGA_COLS = 80;
@@ -26,6 +32,104 @@ static void kprint_at(const char* msg, int row, int col, uint8_t color){
     }
 }
 
+// Notepad implementation
+
+#define KBD_DATA_PORT 0x60
+#define KBD_STATUS_PORT 0x64
+
+
+static const char scancode_set1[128] = {
+    [0x01] = '\033',  // Escape
+
+    [0x02] = '1', [0x03] = '2', [0x04] = '3', [0x05] = '4',
+    [0x06] = '5', [0x07] = '6', [0x08] = '7', [0x09] = '8',
+    [0x0A] = '9', [0x0B] = '0',
+
+    [0x10] = 'q', [0x11] = 'w', [0x12] = 'e', [0x13] = 'r',
+    [0x14] = 't', [0x15] = 'y', [0x16] = 'u', [0x17] = 'i',
+    [0x18] = 'o', [0x19] = 'p',
+
+    [0x1E] = 'a', [0x1F] = 's', [0x20] = 'd', [0x21] = 'f',
+    [0x22] = 'g', [0x23] = 'h', [0x24] = 'j', [0x25] = 'k',
+    [0x26] = 'l',
+
+    [0x2C] = 'z', [0x2D] = 'x', [0x2E] = 'c', [0x2F] = 'v',
+    [0x30] = 'b', [0x31] = 'n', [0x32] = 'm',
+
+    [0x39] = ' ',
+};
+
+static uint8_t keyboard_read_scancode(){
+    while (!(inb(KBD_STATUS_PORT) & 0x01));
+    return inb(KBD_DATA_PORT);
+}
+
+static char get_keyboard_char(void){
+    for (;;){
+        uint8_t sc = keyboard_read_scancode();
+        if (sc == 0x80) continue;
+        if (sc == 0x1C) return '\n';
+        if (sc == 0x0E) return '\b';
+        if (sc == 0x01) return '\033'; // Escape
+
+        if (sc < sizeof(scancode_set1)){
+            char c = scancode_set1[sc];
+            if (c) return c;
+        }
+    }
+}
+
+void main_menu(void);
+
+void notepad(void){
+    uint8_t color = vga_entry_color(15, 1);
+    clear_screen(color);
+
+    kprint_at("TinyOS Notepad - Type your text below:", 1, 2, color);
+    kprint_at("press esc to exit", 2, 2, color);
+    kprint_at("----------------------------------------", 3, 2, color);
+
+    int row = 4, col = 0;
+    for (;;){
+        char c = get_keyboard_char();
+        if (c == '\n'){
+            row++;
+            col = 0;
+        }
+        else if (c == '\b'){
+            if (col > 0){
+                col--;
+            }
+            else if ((row > 4) && (col == 0)){
+                row--;
+                col = VGA_COLS - 1;
+            }
+            int idx = row * VGA_COLS + col;
+            VGA_BUFFER[idx] = vga_entry(' ', color);
+        }
+        else if (c == '\033'){
+            clear_screen(color);
+            kprint_at("Welcome to my TinyOS kernel!", 1, 2, color);
+            main_menu();
+        }
+
+        else{
+            if (row >= VGA_ROWS){
+                continue;
+            }
+            int idx = row * VGA_COLS + col;
+            VGA_BUFFER[idx] = vga_entry(c, color);
+            col++;
+            if (col >= VGA_COLS){
+                col = 0;
+                row++;
+            }
+        }
+    }
+
+}
+
+
 /* ===== IDT structures ===== */
 struct idt_entry{
     uint16_t offset_low;   // lower 16 bits of handler address
@@ -48,12 +152,12 @@ extern void idt_load(uint32_t);
 extern void isr0(void);
 
 /* C-level ISR handler */
-void isr0_c(void){
-    uint8_t color = vga_entry_color(15, 4); // white on red
-    kprint_at(">>> INT 0 FIRED! <<<", 16, 2, color);
-    // Halt after handling
-    for(;;) __asm__ __volatile__("hlt");
-}
+// void isr0_c(void){
+//     uint8_t color = vga_entry_color(15, 4); // white on red
+//     kprint_at(">>> INT 0 FIRED! <<<", 16, 2, color);
+        // Halt after handling
+//     for(;;) __asm__ __volatile__("hlt");
+// }
 
 static void idt_set_gate(int n, uint32_t handler){
     idt[n].offset_low  = handler & 0xFFFF;
@@ -86,24 +190,47 @@ static void idt_init(void){
     idt_load((uint32_t)&idtp);
 }
 
+void main_menu(void) {
+    uint8_t color = vga_entry_color(15, 1);  // white on blue
+
+    kprint_at("TinyOS Main Menu", 3, 2, color);
+    kprint_at("+-----------------+", 5, 2, color);
+    kprint_at("|     Notepad     |", 6, 2, color);
+    kprint_at("+-----------------+", 7, 2, color);
+    kprint_at("Press 'n' to open Notepad, 'q' to quit.", 9, 2, color);
+
+    char c = get_keyboard_char();
+    for (;;) {
+
+        if (c == 'n' || c == 'N') {
+            notepad();  // when notepad returns, redraw menu
+            clear_screen(color);
+        } else if (c == 'q' || c == 'Q') {
+            break;
+        }
+    }
+}
+
 void kernel_main(void){
     uint8_t color = vga_entry_color(15, 1);
     clear_screen(color);
-    kprint_at("Welcome to my TinyOS kernel!", 12, 2, color);
+    kprint_at("Welcome to my TinyOS kernel!", 1, 2, color);
 
     // Set up IDT
-    idt_init();
-    kprint_at("IDT initialized successfully!", 13, 2, color);
+    // idt_init();
+    // kprint_at("IDT initialized successfully!", 13, 2, color);
     
-    kprint_at("Triggering INT 0 (divide by zero)...", 14, 2, color);
+    // kprint_at("Triggering INT 0 (divide by zero)...", 14, 2, color);
 
     // Trigger interrupt 0
-    __asm__ __volatile__("int $0");
+    // __asm__ __volatile__("int $0");
 
     // Should not reach here if ISR halts
-    kprint_at("ERROR: Returned from INT 0!", 15, 2, vga_entry_color(15, 4));
+    // kprint_at("ERROR: Returned from INT 0!", 15, 2, vga_entry_color(15, 4));
+
+    main_menu();
     
-    for (;;){
-        __asm__ __volatile__("hlt");
-    }
+    // for (;;){
+    //     __asm__ __volatile__("hlt");
+    // }
 }

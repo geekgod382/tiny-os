@@ -47,7 +47,7 @@ isr0:
     mov gs, ax
     
 
-    call isr0_c
+    ;call isr0_c
     
 
     pop gs

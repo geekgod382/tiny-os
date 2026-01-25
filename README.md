@@ -25,14 +25,19 @@ make run
 ```
 
 **What it does**
-- Clears the VGA text buffer and prints a welcome message from `kernel_main`.
-- Initialises IDT/ISR
-- Triggers interrupt 0 `int $0`
-- Diplays `>>> INT 0 FIRED! <<<` after handling interrupt succesfully
+- Clears the VGA text buffer and prints a welcome message and menu from `kernel_main`.
+- It has one new feature : A small notepad. Use it by pressing `n` on keyboard.
+
+**IDT/ISR testing**
+Uncomment the IDT implementation for testing ISR. This will:
+- Initialise IDT/ISR
+- Trigger interrupt 0 `int $0`
+- Display `>>> INT 0 FIRED! <<<` after handling interrupt succesfully
 
 **Future updates**
 - IDT/ISR (Done)
-- Better text output
-- Keyboard inputs
+- Keyboard inputs (Done)
+- Shell
+- Filesystem
 
 License : None
