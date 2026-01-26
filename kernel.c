@@ -41,22 +41,40 @@ static void kprint_at(const char* msg, int row, int col, uint8_t color){
 static const char scancode_set1[128] = {
     [0x01] = '\033',  // Escape
 
+    // Number row
     [0x02] = '1', [0x03] = '2', [0x04] = '3', [0x05] = '4',
     [0x06] = '5', [0x07] = '6', [0x08] = '7', [0x09] = '8',
     [0x0A] = '9', [0x0B] = '0',
+    [0x0C] = '-',     // Minus
+    [0x0D] = '=',     // Equals
+    [0x0E] = '\b',    // Backspace
+    [0x0F] = '\t',    // Tab
 
+    // Top letter row
     [0x10] = 'q', [0x11] = 'w', [0x12] = 'e', [0x13] = 'r',
     [0x14] = 't', [0x15] = 'y', [0x16] = 'u', [0x17] = 'i',
     [0x18] = 'o', [0x19] = 'p',
+    [0x1A] = '[',     // Left bracket
+    [0x1B] = ']',     // Right bracket
+    [0x1C] = '\n',    // Enter
 
+    // Middle letter row
     [0x1E] = 'a', [0x1F] = 's', [0x20] = 'd', [0x21] = 'f',
     [0x22] = 'g', [0x23] = 'h', [0x24] = 'j', [0x25] = 'k',
     [0x26] = 'l',
+    [0x27] = ';',     // Semicolon
+    [0x28] = '\'',    // Single quote
+    [0x29] = '`',     // Backtick
 
+    // Bottom letter row
+    [0x2B] = '\\',    // Backslash
     [0x2C] = 'z', [0x2D] = 'x', [0x2E] = 'c', [0x2F] = 'v',
     [0x30] = 'b', [0x31] = 'n', [0x32] = 'm',
+    [0x33] = ',',     // Comma
+    [0x34] = '.',     // Period
+    [0x35] = '/',     // Forward slash
 
-    [0x39] = ' ',
+    [0x39] = ' ',     // Space
 };
 
 static uint8_t keyboard_read_scancode(){
@@ -82,25 +100,25 @@ static char get_keyboard_char(void){
 void main_menu(void);
 
 void notepad(void){
-    uint8_t color = vga_entry_color(15, 1);
+    uint8_t color = vga_entry_color(1, 15);
     clear_screen(color);
 
     kprint_at("TinyOS Notepad - Type your text below:", 1, 2, color);
     kprint_at("press esc to exit", 2, 2, color);
     kprint_at("----------------------------------------", 3, 2, color);
 
-    int row = 4, col = 0;
+    int row = 4, col = 2;
     for (;;){
         char c = get_keyboard_char();
         if (c == '\n'){
             row++;
-            col = 0;
+            col = 2;
         }
         else if (c == '\b'){
-            if (col > 0){
+            if (col > 2){
                 col--;
             }
-            else if ((row > 4) && (col == 0)){
+            else if ((row > 4) && (col == 2)){
                 row--;
                 col = VGA_COLS - 1;
             }
@@ -121,7 +139,7 @@ void notepad(void){
             VGA_BUFFER[idx] = vga_entry(c, color);
             col++;
             if (col >= VGA_COLS){
-                col = 0;
+                col = 2;
                 row++;
             }
         }
@@ -191,7 +209,7 @@ static void idt_init(void){
 }
 
 void main_menu(void) {
-    uint8_t color = vga_entry_color(15, 1);  // white on blue
+    uint8_t color = vga_entry_color(1, 15);  // white on blue
 
     kprint_at("TinyOS Main Menu", 3, 2, color);
     kprint_at("+-----------------+", 5, 2, color);
@@ -212,7 +230,7 @@ void main_menu(void) {
 }
 
 void kernel_main(void){
-    uint8_t color = vga_entry_color(15, 1);
+    uint8_t color = vga_entry_color(1, 15);
     clear_screen(color);
     kprint_at("Welcome to my TinyOS kernel!", 1, 2, color);
 
