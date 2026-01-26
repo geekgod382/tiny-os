@@ -1,16 +1,35 @@
 #include <stdint.h>
+#include "io.h"
 
-static inline uint8_t inb(uint16_t port){
-    uint8_t value;
-    __asm__ __volatile__ ("inb %1, %0" : "=a"(value) : "Nd"(port));
-    return value;
-}
-
-// VGA text mode output
 static volatile uint16_t* const VGA_BUFFER = (uint16_t*)0xB8000;
 static const int VGA_COLS = 80;
 static const int VGA_ROWS = 25;
 
+// Cursor control functions
+void enable_cursor(uint8_t cursor_start, uint8_t cursor_end) {
+    outb(0x3D4, 0x0A);
+    outb(0x3D5, (inb(0x3D5) & 0xC0) | cursor_start);
+    
+    outb(0x3D4, 0x0B);
+    outb(0x3D5, (inb(0x3D5) & 0xE0) | cursor_end);
+}
+
+void disable_cursor() {
+    outb(0x3D4, 0x0A);
+    outb(0x3D5, 0x20);
+}
+
+void update_cursor(int row, int col) {
+    uint16_t pos = row * VGA_COLS + col;
+    
+    outb(0x3D4, 0x0F);
+    outb(0x3D5, (uint8_t)(pos & 0xFF));
+    outb(0x3D4, 0x0E);
+    outb(0x3D5, (uint8_t)((pos >> 8) & 0xFF));
+}
+
+
+// VGA text mode output
 static uint8_t vga_entry_color(uint8_t fg, uint8_t bg){
     return fg | (bg << 4);
 }
@@ -108,11 +127,16 @@ void notepad(void){
     kprint_at("----------------------------------------", 3, 2, color);
 
     int row = 4, col = 2;
+
+    enable_cursor(0, 15);
+    update_cursor(row, col);
+
     for (;;){
         char c = get_keyboard_char();
         if (c == '\n'){
             row++;
             col = 2;
+            update_cursor(row, col);
         }
         else if (c == '\b'){
             if (col > 2){
@@ -124,8 +148,10 @@ void notepad(void){
             }
             int idx = row * VGA_COLS + col;
             VGA_BUFFER[idx] = vga_entry(' ', color);
+            update_cursor(row, col);
         }
         else if (c == '\033'){
+            disable_cursor();
             clear_screen(color);
             kprint_at("Welcome to my TinyOS kernel!", 1, 2, color);
             main_menu();
@@ -142,6 +168,7 @@ void notepad(void){
                 col = 2;
                 row++;
             }
+            update_cursor(row, col);
         }
     }
 
