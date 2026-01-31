@@ -1,12 +1,13 @@
 **TinyOS Kernel**
 
-A tiny 32-bit kernel demonstrating basic boot process, with a small ISR implementation
+A tiny 32-bit kernel demonstrating basic boot process, with a small ISR implementation and a persistent filesystem
 
 **Contents**
 - **`boot.s`**: Assembly bootstrap, multiboot header, ISR stubs, and stack.
 - **`kernel.c`**: C kernel entry (`kernel_main`), VGA text helpers, IDT setup, and C ISR (`isr0_c`).
 - **`linker.ld`**: Linker script placing sections at 1 MiB.
 - **`Makefile`**: Build rules to produce a bootable ISO with GRUB.
+- The different header files include functions for ATA PIO and filesystem operations
 
 **Build Requirements**
 - 32-bit cross toolchain (or GCC multilib): `gcc -m32`, `ld -m elf_i386`.
@@ -15,8 +16,15 @@ A tiny 32-bit kernel demonstrating basic boot process, with a small ISR implemen
 - `grub-mkrescue` and `qemu-system-i386` (for creating and running the ISO).
 - On Windows, use WSL, MSYS2, or install the above tools separately.
 
+**Creating a persistent driver image**
+Run this command in project directory:
+
+```bash
+qemu-img create -f raw tinyfs.img 64M
+```
+This will create a 64 MB driver image
+
 **Build**
-Run from the project root:
 
 ```bash
 make clean
@@ -34,10 +42,13 @@ Uncomment the IDT implementation for testing ISR. This will:
 - Trigger interrupt 0 `int $0`
 - Display `>>> INT 0 FIRED! <<<` after handling interrupt succesfully
 
+**Testing persistence of filesystem**
+Uncomment the file system self-test script and call the function in inside `kernel_main`
+
 **Future updates**
 - IDT/ISR (Done)
 - Keyboard inputs (Done)
 - Shell
-- Filesystem
+- Filesystem (Done)
 
 License : None

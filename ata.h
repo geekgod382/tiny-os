@@ -86,4 +86,4 @@ void ata_write_sector(uint32_t lba, const void* buffer) {
 }
 
 
-#endif ATA_H
+#endif
