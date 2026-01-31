@@ -32,7 +32,7 @@ $(ISO): $(TARGET) grub/grub.cfg
 	grub-mkrescue -o $(ISO) isodir
 
 run: $(ISO)
-	qemu-system-i386 -cdrom $(ISO)
+	qemu-system-i386 -m 256 -cdrom $(ISO) -drive file=tinyfs.img,format=raw,if=ide -boot d
 
 clean:
 	rm -f $(OBJ) $(TARGET) $(ISO)

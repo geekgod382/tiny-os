@@ -238,6 +238,43 @@ static void idt_init(void){
     idt_load((uint32_t)&idtp);
 }
 
+// File system self-test
+// void fs_self_test(void) {
+//     uint8_t color = vga_entry_color(1, 15);
+//     clear_screen(color);
+
+//     const char* fname = "test.txt";
+//     char buf[128];
+
+//     int n = fs_read_file(fname, (uint8_t*)buf, sizeof(buf) - 1);
+
+//     if (n >= 0) {
+//         buf[n] = '\0';
+//         kprint_at("FS: Found existing file:", 2, 2, color);
+//         kprint_at(fname, 3, 2, color);
+//         kprint_at("Contents:", 5, 2, color);
+//         kprint_at(buf, 6, 2, color);
+//     } else {
+//         const char* msg = "Hello from TinyFS (persistent)!";
+//         int rc = fs_write_file(fname, (const uint8_t*)msg, 32);
+
+//         if (rc == 0) {
+//             // Immediately read it back
+//             int m = fs_read_file(fname, (uint8_t*)buf, sizeof(buf) - 1);
+//             if (m >= 0) {
+//                 buf[m] = '\0';
+//                 kprint_at("FS: wrote and re-read test.txt:", 2, 2, color);
+//                 kprint_at(buf, 3, 2, color);
+//                 kprint_at("Now reboot and it should load.", 5, 2, color);
+//             } else {
+//                 kprint_at("FS: write OK, but read failed.", 2, 2, color);
+//             }
+//         } else {
+//             kprint_at("FS: failed to create test.txt", 2, 2, color);
+//         }
+//     }
+// }
+
 void main_menu(void) {
     uint8_t color = vga_entry_color(1, 15);  // white on blue
 
@@ -277,6 +314,7 @@ void kernel_main(void){
     // kprint_at("ERROR: Returned from INT 0!", 15, 2, vga_entry_color(15, 4));
 
     fs_init();
+    // fs_self_test();
     main_menu();
 
     // for (;;){
