@@ -40,12 +40,51 @@ static int kstrcmp(const char* a, const char* b){
 }
 
 static void shell_print_line(const char* msg, int* row, uint8_t color){
+    // Ensure we are in a valid row; keep existing behavior of clearing when full
     if (*row >= VGA_ROWS){
         clear_screen(color);
         *row = 1;
     }
-    kprint_at(msg, *row, 2, color);
-    (*row)++;
+
+    int r = *row;
+    int col = 2; // left margin for shell output
+
+    for (int i = 0; msg[i] != '\0'; ++i){
+        char ch = msg[i];
+
+        // Treat newline characters as line breaks
+        if (ch == '\n'){
+            r++;
+            col = 2;
+            if (r >= VGA_ROWS){
+                clear_screen(color);
+                r = 1;
+            }
+            continue;
+        }
+
+        // Wrap long lines at screen width
+        if (col >= VGA_COLS){
+            r++;
+            col = 2;
+            if (r >= VGA_ROWS){
+                clear_screen(color);
+                r = 1;
+            }
+        }
+
+        VGA_BUFFER[r * VGA_COLS + col] = vga_entry(ch, color);
+        col++;
+    }
+
+    // Move to the next line after printing, like the original function
+    r++;
+    if (r >= VGA_ROWS){
+        clear_screen(color);
+        r = 1;
+    }
+
+    *row = r;
 }
 
 
@@ -412,6 +451,7 @@ void shell(void){
                     shell_print_line((char*)buf, &row, color);
                 }
             }
+            row -= 3;
         }
 
         else if (kstrcmp(cmd, "rm") == 0){
