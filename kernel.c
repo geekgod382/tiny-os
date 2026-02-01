@@ -422,7 +422,7 @@ void shell(void){
         }
 
         else if (kstrcmp(cmd, "version") == 0){
-            shell_print_line("TinyOS version 1.1", &row, color);
+            shell_print_line("TinyOS version v2.0.0", &row, color);
             shell_print_line("Built January 2025", &row, color);
         }
 
