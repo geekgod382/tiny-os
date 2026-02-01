@@ -28,6 +28,25 @@ static void kprint_at(const char* msg, int row, int col, uint8_t color){
     }
 }
 
+static int kstrcmp(const char* a, const char* b){
+    int i = 0;
+    while (a[i] != '\0' && b[i] != '\0'){
+        if (a[i] != b[i]){
+            return (unsigned char)a[i] - (unsigned char)b[i];
+        }
+        i++;
+    }
+    return (unsigned char)a[i] - (unsigned char)b[i];
+}
+
+static void shell_print_line(const char* msg, int* row, uint8_t color){
+    if (*row >= VGA_ROWS){
+        clear_screen(color);
+        *row = 1;
+    }
+    kprint_at(msg, *row, 2, color);
+    (*row)++;
+}
 
 
 // Cursor control functions
@@ -97,6 +116,10 @@ static const char scancode_set1[128] = {
     [0x35] = '/',     // Forward slash
 
     [0x39] = ' ',     // Space
+
+    [0x1D] = '\x11',  // Left Control (non-newline control code used to avoid colliding with Enter)
+    [0x38] = 40,      // Left Alt
+
 };
 
 static uint8_t keyboard_read_scancode(){
@@ -120,6 +143,78 @@ static char get_keyboard_char(void){
 }
 
 void main_menu(void);
+
+void save_function(uint16_t* buffer){
+    uint8_t color = vga_entry_color(1, 15);
+
+    kprint_at("Please enter file name (max 23 chars):", 20, 2, color);
+    char filename[24];
+    for (int i = 0; i < 24; ++i) filename[i] = '\0';
+    int row = 21, col = 2;
+    int fpos = 0;
+
+    enable_cursor(0, 15);
+    update_cursor(row, col);
+
+    for (;;){
+        char ch = get_keyboard_char();
+
+        if (ch == '\b'){
+            if (fpos > 0){
+                fpos--;
+                if (col > 2) {
+                    col--;
+                } else if (row > 3) {
+                    row--;
+                    col = VGA_COLS - 1;
+                }
+                int idx = row * VGA_COLS + col;
+                VGA_BUFFER[idx] = vga_entry(' ', color);
+                update_cursor(row, col);
+            }
+        }
+        else if (ch == '\033'){
+            disable_cursor();
+            clear_screen(color);
+            return;
+        }
+        else if (ch == '\n'){
+            filename[fpos] = '\0';
+            /* Extract text area from the VGA buffer into a byte array */
+            uint8_t data[VGA_COLS * (VGA_ROWS - 4)];
+            int dpos = 0;
+            for (int r = 4; r < VGA_ROWS; ++r){
+                for (int c = 2; c < VGA_COLS; ++c){
+                    uint16_t entry = buffer[r * VGA_COLS + c];
+                    char ch2 = (char)(entry & 0xFF);
+                    data[dpos++] = (uint8_t)ch2;
+                }
+            }
+            int v = fs_write_file(filename, data, dpos);
+            if (v == 0){
+                kprint_at("File saved successfully!", row + 2, 2, color);
+            } else {
+                kprint_at("Error saving file!", row + 2, 2, color);
+            }
+            disable_cursor();
+            return;
+        }
+        else {
+            if (fpos < 23 && ch >= ' '){
+                filename[fpos++] = ch;
+                int idx = row * VGA_COLS + col;
+                VGA_BUFFER[idx] = vga_entry(ch, color);
+                col++;
+                if (col >= VGA_COLS){
+                    col = 2;
+                    row++;
+                }
+                update_cursor(row, col);
+            }
+        }
+    }
+} 
+
 
 void notepad(void){
     uint8_t color = vga_entry_color(1, 15);
@@ -156,8 +251,14 @@ void notepad(void){
         else if (c == '\033'){
             disable_cursor();
             clear_screen(color);
-            kprint_at("Welcome to my TinyOS kernel!", 1, 2, color);
-            main_menu();
+            return;
+        }
+
+        else if (c == '\x11'){
+            char x = get_keyboard_char();
+            if (x == 's'){
+                save_function(VGA_BUFFER);
+            }
         }
 
         else{
@@ -175,6 +276,168 @@ void notepad(void){
         }
     }
 
+}
+
+void shell(void){
+    uint8_t color = vga_entry_color(1, 15);
+    int row = 1;
+
+    clear_screen(color);
+    shell_print_line("TinyOS Shell - type 'help' for commands, 'q' to quit", &row, color);
+
+    enable_cursor(0, 15);
+
+    for (;;){
+        if (row >= VGA_ROWS){
+            clear_screen(color);
+            row = 1;
+            shell_print_line("TinyOS Shell - type 'help' for commands, 'q' to quit", &row, color);
+        }
+
+        char line[80];
+        int len = 0;
+        int col = 2;
+        const char* prompt = "tinyos> ";
+
+        kprint_at(prompt, row, col, color);
+        col += 8; // length of "tinyos> "
+        update_cursor(row, col);
+
+        for (;;){
+            char c = get_keyboard_char();
+
+            if (c == '\n'){
+                break;
+            }
+            else if (c == '\b'){
+                if (len > 0 && col > 2 + 8){
+                    len--;
+                    col--;
+                    int idx = row * VGA_COLS + col;
+                    VGA_BUFFER[idx] = vga_entry(' ', color);
+                    update_cursor(row, col);
+                }
+            }
+            else if (c >= 32 && c <= 126){
+                if (len < (int)(sizeof(line) - 1) && col < VGA_COLS - 1){
+                    line[len++] = c;
+                    int idx = row * VGA_COLS + col;
+                    VGA_BUFFER[idx] = vga_entry(c, color);
+                    col++;
+                    update_cursor(row, col);
+                }
+            }
+        }
+
+        line[len] = '\0';
+        row++;
+
+        if (len == 0){
+            continue;
+        }
+
+        int i = 0;
+        while (line[i] == ' '){
+            i++;
+        }
+        char* cmd = &line[i];
+
+        int cmd_end = i;
+        while (line[cmd_end] != '\0' && line[cmd_end] != ' '){
+            cmd_end++;
+        }
+        char* arg = 0;
+        if (line[cmd_end] != '\0'){
+            line[cmd_end] = '\0';
+            int j = cmd_end + 1;
+            while (line[j] == ' '){
+                j++;
+            }
+            if (line[j] != '\0'){
+                arg = &line[j];
+            }
+        }
+
+        if (kstrcmp(cmd, "help") == 0){
+            shell_print_line("Available commands:", &row, color);
+            shell_print_line("  help      - show this help", &row, color);
+            shell_print_line("  clear     - clear the screen", &row, color);
+            shell_print_line("  version   - show version info", &row, color);
+            shell_print_line("  ls        - list files", &row, color);
+            shell_print_line("  cat <f>   - show file contents", &row, color);
+            shell_print_line("  rm <f>    - delete file", &row, color);
+            shell_print_line("  notepad   - open notepad", &row, color);
+            shell_print_line("  q         - return to menu", &row, color);
+        }
+        else if (kstrcmp(cmd, "clear") == 0){
+            clear_screen(color);
+            row = 1;
+            shell_print_line("TinyOS Shell - type 'help' for commands, 'q' to quit", &row, color);
+        }
+        else if (kstrcmp(cmd, "notepad") == 0){
+            notepad();
+            clear_screen(color);
+            row = 1;
+            shell_print_line("TinyOS Shell - type 'help' for commands, 'q' to quit", &row, color);
+            enable_cursor(0, 15);
+        }
+
+        else if (kstrcmp(cmd, "version") == 0){
+            shell_print_line("TinyOS version 1.1", &row, color);
+            shell_print_line("Built January 2025", &row, color);
+        }
+
+        else if (kstrcmp(cmd, "ls") == 0){
+            int any = 0;
+            for (int f = 0; f < MAX_FILES; ++f){
+                if (root_dir[f].used){
+                    shell_print_line(root_dir[f].name, &row, color);
+                    any = 1;
+                }
+            }
+            if (!any){
+                shell_print_line("(no files)", &row, color);
+            }
+        }
+        else if (kstrcmp(cmd, "cat") == 0){
+            if (!arg || arg[0] == '\0'){
+                shell_print_line("Usage: cat <filename>", &row, color);
+            } else {
+                uint8_t buf[512];
+                int n = fs_read_file(arg, buf, sizeof(buf) - 1);
+                if (n < 0){
+                    shell_print_line("File not found", &row, color);
+                } else {
+                    buf[n] = '\0';
+                    shell_print_line((char*)buf, &row, color);
+                }
+            }
+        }
+
+        else if (kstrcmp(cmd, "rm") == 0){
+            if (!arg || arg[0] == '\0'){
+                shell_print_line("Usage: rm <filename>", &row, color);
+            } else {
+                int r = fs_delete_file(arg);
+                if (r == 0){
+                    shell_print_line("File deleted", &row, color);
+                } else {
+                    shell_print_line("File not found", &row, color);
+                }
+            }
+        }
+
+        else if (kstrcmp(cmd, "q") == 0){
+            disable_cursor();
+            main_menu();
+        }
+
+        else {
+            shell_print_line("Unknown command", &row, color);
+        }
+    }
+
+    disable_cursor();
 }
 
 
@@ -276,48 +539,47 @@ static void idt_init(void){
 // }
 
 void main_menu(void) {
-    uint8_t color = vga_entry_color(1, 15);  // white on blue
+    uint8_t color = vga_entry_color(1, 15);
 
-    kprint_at("TinyOS Main Menu", 3, 2, color);
-    kprint_at("+-----------------+", 5, 2, color);
-    kprint_at("|     Notepad     |", 6, 2, color);
-    kprint_at("+-----------------+", 7, 2, color);
-    kprint_at("Press 'n' to open Notepad", 9, 2, color);
+    for (;;){
+        clear_screen(color);
+        kprint_at("Welcome to my TinyOS kernel!", 1, 2, color);
+        kprint_at("TinyOS Main Menu", 3, 2, color);
 
-    char c = get_keyboard_char();
-    for (;;) {
+        // Set up IDT
+        // idt_init();
+        // kprint_at("IDT initialized successfully!", 13, 2, color);
+        
+        // kprint_at("Triggering INT 0 (divide by zero)...", 14, 2, color);
+
+        // Trigger interrupt 0
+        // __asm__ __volatile__("int $0");
+
+        // Should not reach here if ISR halts
+        // kprint_at("ERROR: Returned from INT 0!", 15, 2, vga_entry_color(15, 4));
+
+        kprint_at("+---------------------------+", 5, 2, color);
+        kprint_at("| n - Notepad               |", 6, 2, color);
+        kprint_at("| s - Shell                 |", 7, 2, color);
+        kprint_at("+---------------------------+", 8, 2, color);
+        kprint_at("Press keys to open the app", 10, 2, color);
+
+        char c = get_keyboard_char();
 
         if (c == 'n' || c == 'N') {
-            notepad();  // when notepad returns, redraw menu
-            clear_screen(color);
-        } else if (c == 'q' || c == 'Q') {
-            break;
+            notepad();
+        }
+        if (c == 's' || c == 'S') {
+            shell();
         }
     }
 }
 
 void kernel_main(void){
-    uint8_t color = vga_entry_color(1, 15);
-    clear_screen(color);
-    kprint_at("Welcome to my TinyOS kernel!", 1, 2, color);
-
-    // Set up IDT
-    // idt_init();
-    // kprint_at("IDT initialized successfully!", 13, 2, color);
-    
-    // kprint_at("Triggering INT 0 (divide by zero)...", 14, 2, color);
-
-    // Trigger interrupt 0
-    // __asm__ __volatile__("int $0");
-
-    // Should not reach here if ISR halts
-    // kprint_at("ERROR: Returned from INT 0!", 15, 2, vga_entry_color(15, 4));
-
     fs_init();
-    // fs_self_test();
     main_menu();
 
-    // for (;;){
-    //     __asm__ __volatile__("hlt");
-    // }
+    for (;;){
+        __asm__ __volatile__("hlt");
+    }
 }

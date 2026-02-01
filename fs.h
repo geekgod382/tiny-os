@@ -163,6 +163,27 @@ int fs_read_file(const char* name, uint8_t* buffer, uint32_t buffer_size) {
     return size;
 }
 
+int fs_delete_file(const char* name) {
+    int slot = fs_find_by_name(name);
+    if (slot < 0) return -1; // not found
+
+    struct dir_entry* e = &root_dir[slot];
+    e->used = 0;
+    e->size = 0;
+    e->name[0] = '\0';
+
+    /* Zero out the file's data sectors to avoid leftover data */
+    uint8_t sector[SECTOR_SIZE];
+    for (int i = 0; i < SECTOR_SIZE; ++i) sector[i] = 0;
+    uint32_t lba = fs_slot_lba(slot);
+    for (uint32_t s = 0; s < FILE_SECTORS; ++s) {
+        ata_write_sector(lba + s, sector);
+    }
+
+    fs_save_directory();
+    return 0;
+}
+
 void fs_init(void){
     fs_load_directory();
 }

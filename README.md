@@ -17,7 +17,7 @@ A tiny 32-bit kernel demonstrating basic boot process, with a small ISR implemen
 - On Windows, use WSL, MSYS2, or install the above tools separately.
 
 **Creating a persistent driver image**
-Run this command in project directory:
+Run this command ONLY ONCE in project directory:
 
 ```bash
 qemu-img create -f raw tinyfs.img 64M
@@ -48,7 +48,7 @@ Uncomment the file system self-test script and call the function in inside `kern
 **Future updates**
 - IDT/ISR (Done)
 - Keyboard inputs (Done)
-- Shell
+- Shell (Done)
 - Filesystem (Done)
 
 License : None
