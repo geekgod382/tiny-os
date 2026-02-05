@@ -1,25 +1,9 @@
-#ifndef FS_H
-#define FS_H
-
 #include "ata.h"
+#include "fs.h"
 #include <stdint.h>
 #include <stddef.h>
 
-#define SECTOR_SIZE      512
-#define DIR_SECTORS      16
-#define DIR_START_LBA    1
-#define DATA_START_LBA   (DIR_START_LBA + DIR_SECTORS)
-#define FILE_SECTORS     (64 * 1024 / SECTOR_SIZE)   // 128
-#define MAX_FILES        256
-
-struct dir_entry {
-    char     name[24];
-    uint32_t size;
-    uint8_t  used;
-    uint8_t  _pad[3];
-} __attribute__((packed));
-
-static struct dir_entry root_dir[MAX_FILES];
+struct dir_entry root_dir[MAX_FILES];
 
 static void fs_load_directory(void) {
     uint8_t sector[SECTOR_SIZE];
@@ -187,5 +171,3 @@ int fs_delete_file(const char* name) {
 void fs_init(void){
     fs_load_directory();
 }
-
-#endif

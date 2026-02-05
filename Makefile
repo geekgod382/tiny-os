@@ -6,16 +6,19 @@ AS = nasm
 LD = ld
 
 CFLAGS = -m32 -ffreestanding -O2 -Wall -Wextra \
-         -fno-exceptions -fno-stack-protector -fno-pic -fno-builtin
+         -fno-exceptions -fno-stack-protector -fno-pic -fno-builtin -Isrc
 
 ASFLAGS = -f elf32
 LDFLAGS = -m elf_i386 -T linker.ld -nostdlib
 
-OBJ = boot.o kernel.o
+OBJ = boot.o kernel.o src/io.o src/ata.o src/fs.o
 
 all: $(ISO)
 
 %.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+src/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 %.o: %.s
