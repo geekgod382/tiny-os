@@ -451,7 +451,6 @@ void shell(void){
                     shell_print_line((char*)buf, &row, color);
                 }
             }
-            row -= 3;
         }
 
         else if (kstrcmp(cmd, "rm") == 0){
