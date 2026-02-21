@@ -186,6 +186,11 @@ void main_menu(void);
 void save_function(uint16_t* buffer){
     uint8_t color = vga_entry_color(1, 15);
 
+    uint16_t snapshot[VGA_COLS * VGA_ROWS];
+    for (int i = 0; i < VGA_COLS * VGA_ROWS; i++){
+        snapshot[i] = buffer[i];
+    }
+
     kprint_at("Please enter file name (max 23 chars):", 20, 2, color);
     char filename[24];
     for (int i = 0; i < 24; ++i) filename[i] = '\0';
@@ -223,12 +228,31 @@ void save_function(uint16_t* buffer){
             uint8_t data[VGA_COLS * (VGA_ROWS - 4)];
             int dpos = 0;
             for (int r = 4; r < VGA_ROWS; ++r){
+                // Find the last non-space character in this row
+                int last_col = 1; // default to nothing
                 for (int c = 2; c < VGA_COLS; ++c){
-                    uint16_t entry = buffer[r * VGA_COLS + c];
+                    uint16_t entry = snapshot[r * VGA_COLS + c];
+                    char ch2 = (char)(entry & 0xFF);
+                    if (ch2 != ' ' && ch2 != '\0'){
+                        last_col = c;
+                    }
+                }
+                // Only write up to last non-space char, then a newline
+                for (int c = 2; c <= last_col; ++c){
+                    uint16_t entry = snapshot[r * VGA_COLS + c];
                     char ch2 = (char)(entry & 0xFF);
                     data[dpos++] = (uint8_t)ch2;
                 }
+                // Add a newline after each row (skip empty rows at end optionally)
+                if (last_col > 1){
+                    data[dpos++] = '\n';
+                }
             }
+
+            while (dpos > 0 && data[dpos - 1] == '\n' && dpos < 19){
+                dpos--;
+            }
+
             int v = fs_write_file(filename, data, dpos);
             if (v == 0){
                 kprint_at("File saved successfully!", row + 2, 2, color);
@@ -318,7 +342,7 @@ void notepad(void){
 }
 
 void shell(void){
-    uint8_t color = vga_entry_color(1, 15);
+    uint8_t color = vga_entry_color(15, 0);
     int row = 1;
 
     clear_screen(color);
@@ -422,7 +446,7 @@ void shell(void){
         }
 
         else if (kstrcmp(cmd, "version") == 0){
-            shell_print_line("TinyOS version v2.1.0", &row, color);
+            shell_print_line("TinyOS version v2.2.0", &row, color);
             shell_print_line("Built January 2025", &row, color);
         }
 
